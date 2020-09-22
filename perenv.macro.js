@@ -1,9 +1,73 @@
 const { createMacro } = require("babel-plugin-macros");
-const path = require("path");
 
 function loadPerEnvMacro({ state, babel, references }) {
+  const t = babel.types;
   const program = state.file.path;
-  const { loadPerEnv = [] } = references;
+  const {
+    loadPerEnv = [],
+    loadPerEnvMap = [],
+    ...strayReferences
+  } = references;
+
+  Object.entries(strayReferences).forEach(([key]) => {
+    throw new Error(`Cannot find reference: ${key} in perenv.macro`);
+  });
+  loadPerEnvMap.forEach((reference) => {
+    const isAssigned =
+      reference.parentPath.container.type === "VariableDeclarator";
+
+    const [
+      envMapReference,
+      envKeyReference,
+      nullableReference,
+    ] = reference.parent.arguments;
+
+    const nullable =
+      nullableReference &&
+      nullableReference.type === "BooleanLiteral" &&
+      nullableReference.value;
+
+    const envMapKeys = envMapReference.properties.map((p) => p.key.name);
+    const envKey = envKeyReference.value;
+
+    if (!envMapKeys.includes(process.env[envKey]) && !nullable) {
+      throw new Error(
+        `Entry not found in loadPerEnvMap, ${envKey}:${process.env[envKey]}`
+      );
+    }
+
+    const propertyReference = envMapReference.properties.find(
+      (p) => p.key.name === process.env[envKey]
+    );
+
+    if (!propertyReference && nullable) {
+      if (isAssigned) {
+        reference.parentPath.replaceWith(t.nullLiteral());
+      } else {
+        reference.parentPath.remove();
+      }
+
+      return;
+    }
+
+    const propertyValue = propertyReference.value.value;
+
+    if (isAssigned) {
+      const identifier = reference.parentPath.parent.id.name;
+      reference.parentPath.parentPath.remove();
+      program.node.body.unshift(
+        t.importDeclaration(
+          [t.importNamespaceSpecifier(t.identifier(identifier))],
+          t.stringLiteral(propertyValue)
+        )
+      );
+    } else {
+      reference.parentPath.remove();
+      program.node.body.unshift(
+        t.importDeclaration([], t.stringLiteral(propertyValue))
+      );
+    }
+  });
 
   loadPerEnv.forEach((reference) => {
     const configObject = {
@@ -26,13 +90,13 @@ function loadPerEnvMacro({ state, babel, references }) {
       const imports = program.node.body
         .map((n) => n.specifiers)
         .filter(Boolean)
-        .flat(1)
+        .reduce((a, b) => [...a, ...b], [])
         .map((i) => i.local.name);
 
       const declarations = program.node.body
         .map((n) => n.declarations)
         .filter(Boolean)
-        .flat(1)
+        .reduce((a, b) => [...a, ...b], [])
         .map((d) => d.id.name);
 
       if (
@@ -52,11 +116,7 @@ function loadPerEnvMacro({ state, babel, references }) {
       : Boolean(process.env[envKey]);
 
     if (doImport) {
-      const callerFilePath = state.file.opts.filename;
-      const callerBaseDir = path.dirname(callerFilePath);
-      const importFilePath =
-        "./" + path.relative(callerBaseDir, configObject.path);
-      const t = babel.types;
+      const importFilePath = configObject.path;
 
       const importIdentifiers = [];
 
