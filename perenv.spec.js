@@ -103,6 +103,17 @@ describe("loadPerEnvMap", () => {
     expect(result.includes("import * as feature ")).toBe(true);
   });
 
+  it("Should support string literal keys", () => {
+    process.env.FEATURE_VERSION = "alpha";
+
+    const result = applyMacro(`
+      import { loadPerEnvMap } from "./perenv.macro";
+      const feature = loadPerEnvMap({'alpha': './aaaa.js'}, 'FEATURE_VERSION');
+    `);
+
+    expect(result.includes("import * as feature ")).toBe(true);
+  });
+
   it("Should throw if the envar value is not found in the env map", () => {
     process.env.FEATURE_VERSION = "alpha";
 

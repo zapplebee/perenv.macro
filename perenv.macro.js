@@ -27,7 +27,7 @@ function loadPerEnvMacro({ state, babel, references }) {
       nullableReference.type === "BooleanLiteral" &&
       nullableReference.value;
 
-    const envMapKeys = envMapReference.properties.map((p) => p.key.name);
+    const envMapKeys = envMapReference.properties.map((p) => p.key.name || p.key.value);
     const envKey = envKeyReference.value;
 
     if (!envMapKeys.includes(process.env[envKey]) && !nullable) {
@@ -37,7 +37,7 @@ function loadPerEnvMacro({ state, babel, references }) {
     }
 
     const propertyReference = envMapReference.properties.find(
-      (p) => p.key.name === process.env[envKey]
+      (p) => (p.key.name || p.key.value) === process.env[envKey]
     );
 
     if (!propertyReference && nullable) {
