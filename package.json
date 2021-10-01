@@ -1,6 +1,6 @@
 {
   "name": "perenv.macro",
-  "version": "0.0.0-semver",
+  "version": "0.0.3",
   "main": "perenv.macro.js",
   "author": "Zachary Skalko",
   "license": "MIT",
