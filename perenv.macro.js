@@ -1,5 +1,16 @@
 const { createMacro } = require("babel-plugin-macros");
 
+function extractKeyName(property) {
+  const { key } = property;
+  if (key.type === 'StringLiteral') {
+    return key.value;
+  }
+  if (key.name) {
+    return key.name;
+  }
+  throw new Error(`Unsupported key in loadPerEnvMap`);
+}
+
 function loadPerEnvMacro({ state, babel, references }) {
   const t = babel.types;
   const program = state.file.path;
@@ -27,7 +38,7 @@ function loadPerEnvMacro({ state, babel, references }) {
       nullableReference.type === "BooleanLiteral" &&
       nullableReference.value;
 
-    const envMapKeys = envMapReference.properties.map((p) => p.key.name);
+    const envMapKeys = envMapReference.properties.map(extractKeyName);
     const envKey = envKeyReference.value;
 
     if (!envMapKeys.includes(process.env[envKey]) && !nullable) {
@@ -37,7 +48,7 @@ function loadPerEnvMacro({ state, babel, references }) {
     }
 
     const propertyReference = envMapReference.properties.find(
-      (p) => p.key.name === process.env[envKey]
+      (p) => extractKeyName(p) === process.env[envKey]
     );
 
     if (!propertyReference && nullable) {
